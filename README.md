@@ -1,38 +1,28 @@
-# fastapi_auth
-Description
+# Auth0 Implementation in FastAPI
+This project integrates FastAPI with Auth0 for authentication and authorization.
 
-Objective:
+## To start the server follow below steps:
+create virtual environment: python -m venv venv
+activate virtual environment: ./venv/Scripts/activate
+Install dependencies: pip install -r requirements.txt
+Run the FastAPI server: uvicorn server:server --reload
 
-Implement authentication and authorization using Auth0 in the FastAPI application.
+## Configuration:
+Set up Auth0 Tenant
+AUTH0_DOMAIN = "your-auth0-domain"
+CLIENT_ID = "your-client-id"
+CLIENT_SECRET = "your-client-secret"
+REDIRECT_URI = "http://localhost:8000/docs"
+AUDIENCE = "your-audience"
+DEFAULT_ROLE_ID = "your-default-role-id"
+EXTENSION_URL = "your-extension-url"
 
-Ensure users can be assigned to groups with specific permissions for access control.
-
-Deliverables:
-
-Integrate Auth0 into the FastAPI project for user authentication.
-
-Configure Auth0 to support group-based permissions.
-
-Implement logic to:
-
-Create groups in Auth0.
-
-Assign permissions to groups.
-
-Associate users with groups.
-
-Add middleware in FastAPI to verify JWT tokens and extract user information.
-
-Implement route-level permission checks based on user roles and permissions.
-
-Acceptance Criteria:
-
-Auth0 authentication works seamlessly for all API endpoints.
-
-Users are assigned to groups dynamically based on the application logic.
-
-Permissions are enforced at the group level to restrict access to specific routes.
-
-Appropriate error handling is implemented for unauthorized and unauthenticated access.
-
-Detailed documentation is provided on how to configure Auth0 for the application, including tenant setup, application creation, and group/permission management.
+## Endpoints:
+GET / - Redirects to Auth0 login
+GET /login - Starts Auth0 login flow
+GET /token - Exchanges authorization code for JWT token
+GET /protected - Protected route requiring valid JWT
+POST /role - Creates a new role in Auth0
+POST /assign-role - Assigns role to a user
+GET /fetch-groups - Fetches available Auth0 groups
+PATCH /assign-user-to-group - Assigns user to a group
