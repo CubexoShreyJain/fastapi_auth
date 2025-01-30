@@ -1,29 +1,21 @@
 import requests
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.responses import RedirectResponse
 import jwt
 from jwt import PyJWKClient
 import json
+import config
 
 server = FastAPI()
-
-AUTH0_DOMAIN = "dev-fsozahwfyqtys1qr.us.auth0.com"
-CLIENT_ID = "liNRlvgwS575bxdzidaUYHrAWIuUvjyB"
-CLIENT_SECRET = "UR0eqG1BqcvSTAW8XUDZeHoY5oCSEXfJCRdzUG4p3QJhA9FErAgIGgagBiirwkOf"
-REDIRECT_URI = "http://localhost:8000/docs"
-AUDIENCE = "https://microapi.io/api/orders"
-DEFAULT_ROLE_ID = "rol_BCX1ZXvLT75tJ6um"  
-EXTENSION_URL = "https://dev-fsozahwfyqtys1qr.us.webtask.run/adf6e2f2b84784b57522e3b19dfc9201/api"
-
 security = HTTPBearer()
 
 # Redirects user to the Auth0 login page
 @server.get("/")
 def register():
     auth0_url = (
-        f"https://{AUTH0_DOMAIN}/authorize?response_type=code&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}&scope=openid profile email&prompt=login&audience={AUDIENCE}"
+        f"https://{config.AUTH0_DOMAIN}/authorize?response_type=code&client_id={config.CLIENT_ID}"
+        f"&redirect_uri={config.REDIRECT_URI}&scope=openid profile email&prompt=login&audience={config.AUDIENCE}"
     )
     return RedirectResponse(url=auth0_url)
 
@@ -31,8 +23,8 @@ def register():
 @server.get("/login")
 def login():
     auth_url = (
-        f"https://{AUTH0_DOMAIN}/authorize?response_type=code&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}&scope=offline_access openid profile email&audience={AUDIENCE}"
+        f"https://{config.AUTH0_DOMAIN}/authorize?response_type=code&client_id={config.CLIENT_ID}"
+        f"&redirect_uri={config.REDIRECT_URI}&scope=offline_access openid profile email&audience={config.AUDIENCE}"
     )
     return RedirectResponse(auth_url)
 
@@ -41,16 +33,16 @@ def login():
 def get_access_token(code: str):
     payload = {
         "grant_type": "authorization_code",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_id": config.CLIENT_ID,
+        "client_secret": config.CLIENT_SECRET,
         "code": code,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": config.REDIRECT_URI,
     }
 
     headers = {"content-type": "application/x-www-form-urlencoded"}
 
     response = requests.post(
-        f"https://{AUTH0_DOMAIN}/oauth/token", data=payload, headers=headers
+        f"https://{config.AUTH0_DOMAIN}/oauth/token", data=payload, headers=headers
     )
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)
@@ -62,25 +54,22 @@ def get_access_token(code: str):
     user_id = decoded_token.get("sub")
     token=get_authorization_token()
     group_id_data=fetch_groups(token)
-    # print(group_id_data)
     group_id = next((group['_id'] for group in group_id_data['groups'] if group['name'] == 'Employee'), None)
-    print(user_id) 
-    print(group_id) 
-    print(token) 
+
     if user_id:
-        assign_role_to_user(user_id, DEFAULT_ROLE_ID)
+        assign_role_to_user(user_id, config.DEFAULT_ROLE_ID)
         assign_user_to_group(user_id,group_id,token)
     return {"access_token": result["access_token"], "decoded_token": decoded_token}
 
 def get_authorization_token():
-    url = f"https://{AUTH0_DOMAIN}/oauth/token"
+    url = f"https://{config.AUTH0_DOMAIN}/oauth/token"
     headers = {
         "Content-Type": "application/json"
     }
     data = {
-        "client_id": "K30Ilu8F1lOQ1mGeBHtIybfQwhpHTJe0",
-        "client_secret": "bkGuyeNP2ym-RYjAZueehRpPBVxXypOkO58tU-HIrwfFDsf7HpTe0z7_ZYc0mCpl",
-        "audience": "urn:auth0-authz-api",
+        "client_id": config.client_id,
+        "client_secret": config.client_secret,
+        "audience": config.audience,
         "grant_type": "client_credentials"
     } 
     response = requests.post(url, headers=headers, json=data)
@@ -94,7 +83,7 @@ def get_authorization_token():
 # Endpoint to create a new role in Auth0
 @server.post("/role")
 def create_role(name: str, description: str, token: str):
-    url = f"https://{AUTH0_DOMAIN}/api/v2/roles"
+    url = f"https://{config.AUTH0_DOMAIN}/api/v2/roles"
 
     headers = {
         "content-type": "application/json",
@@ -118,7 +107,7 @@ def assign_role(user_id: str, role_id: str):
 # Helper function to assign role to a user
 def assign_role_to_user(user_id: str, role_id: str):
     management_token = get_management_api_token()
-    url = f"https://{AUTH0_DOMAIN}/api/v2/users/{user_id}/roles"
+    url = f"https://{config.AUTH0_DOMAIN}/api/v2/users/{user_id}/roles"
 
     headers = {
         "content-type": "application/json",
@@ -135,7 +124,7 @@ def assign_role_to_user(user_id: str, role_id: str):
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
 
-    jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+    jwks_url = f"https://{config.AUTH0_DOMAIN}/.well-known/jwks.json"
     jwks_client = PyJWKClient(jwks_url)
     signing_key = jwks_client.get_signing_key_from_jwt(token).key
 
@@ -144,8 +133,8 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
             token,
             signing_key,
             algorithms=["RS256"],
-            audience=AUDIENCE,
-            issuer=f"https://{AUTH0_DOMAIN}/"
+            audience=config.AUDIENCE,
+            issuer=f"https://{config.AUTH0_DOMAIN}/"
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -163,7 +152,7 @@ async def enforce_permissions(request, call_next):
             raise HTTPException(status_code=401, detail="Authorization header missing")
 
         token = auth_header.split()[1]
-        jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+        jwks_url = f"https://{config.AUTH0_DOMAIN}/.well-known/jwks.json"
         jwks_client = PyJWKClient(jwks_url)
         signing_key = jwks_client.get_signing_key_from_jwt(token).key
 
@@ -172,8 +161,8 @@ async def enforce_permissions(request, call_next):
                 token,
                 signing_key,
                 algorithms=["RS256"],
-                audience=AUDIENCE,
-                issuer=f"https://{AUTH0_DOMAIN}/"
+                audience=config.AUDIENCE,
+                issuer=f"https://{config.AUTH0_DOMAIN}/"
             )
             if "permissions" not in payload or "read:data" not in payload["permissions"]:
                 raise HTTPException(status_code=403, detail="Permission denied")
@@ -187,11 +176,11 @@ async def enforce_permissions(request, call_next):
 
 # Function to get the management API token for making Auth0 API requests
 def get_management_api_token():
-    url = f"https://{AUTH0_DOMAIN}/oauth/token"
+    url = f"https://{config.AUTH0_DOMAIN}/oauth/token"
     payload = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "audience": f"https://{AUTH0_DOMAIN}/api/v2/",
+        "client_id": config.CLIENT_ID,
+        "client_secret": config.CLIENT_SECRET,
+        "audience": f"https://{config.AUTH0_DOMAIN}/api/v2/",
         "grant_type": "client_credentials"
     }
 
@@ -204,9 +193,9 @@ def get_management_api_token():
     return response.json()["access_token"]
 
 @server.get("/fetch-groups")
-def fetch_groups(token: str = Query(..., description="JWT access token")):
+def fetch_groups(token: str):
     headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(f"{EXTENSION_URL}/groups", headers=headers)
+    response = requests.get(f"{config.EXTENSION_URL}/groups", headers=headers)
 
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)
@@ -215,7 +204,7 @@ def fetch_groups(token: str = Query(..., description="JWT access token")):
 
 @server.patch("/assign-user-to-group")
 def assign_user_to_group(user_id: str, group_id: str, access_token: str):
-    url = f"{EXTENSION_URL}/groups/{group_id}/members"
+    url = f"{config.EXTENSION_URL}/groups/{group_id}/members"
 
     headers = {
         "Content-Type": "application/json",
