@@ -3,59 +3,59 @@ from fastapi import FastAPI, Security
 from starlette.responses import RedirectResponse
 import jwt
 import json
+import os 
+from config import DOMAIN,CLIENT_ID,CLIENT_SECRET,CLIENT_ID_APP,CLIENT_SECRET_APP,DEFAULT_ROLE_ID
+
 #create a app of fastapi
 server = FastAPI()
-
-# Set up Auth0 credentials
-DOMAIN = "dev-vgwol4rrkbyri5sm.us.auth0.com" 
-CLIENT_ID = "LiRWtm33Heceqw7K833qdUC2qOQJTbJW"
-CLIENT_SECRET = "HiW4jGOwmShbMN1Kl7MfH19BGgQznNht9pmrNYpR1eVnNf7TGwNKVWHod92Xr3Er"
-DEFAULT_ROLE_ID = "rol_a1GnXsQJ0x5k6aGG"
 
 #login from the autho0 login page
 @server.get('/')
 def login():
     return RedirectResponse(
-        "https://dev-vgwol4rrkbyri5sm.us.auth0.com/authorize"
+        f"https://{DOMAIN}/authorize"
         "?response_type=code"
-        "&client_id=BxxmEvkITReWi9zNi3kCH1dN07SyosyR"
-        "&redirect_uri=http://localhost:8000/docs"
+        f"&client_id={CLIENT_ID_APP}"
+        "&redirect_uri=http://localhost:8000/token"
         "&scope= openid profile email&prompt=login"
         "&audience=https://microapis.io/api/orders"
     )
+
 #redirect to the fastapi docs page
 @server.get("/login")
 def register():
     return RedirectResponse(
-        "https://dev-vgwol4rrkbyri5sm.us.auth0.com/authorize"
+        f"https://{DOMAIN}/authorize"
         "?response_type=code"
-        "&client_id=BxxmEvkITReWi9zNi3kCH1dN07SyosyR"
+        f"&client_id={CLIENT_SECRET_APP}"
         "&redirect_uri=http://localhost:8000/docs"
         "&scope=offline_access openid profile email"
         "&audience=https://microapis.io/api/orders"
     )
+
 #redirect to the fastapi docs page
 @server.get("/token")
 def get_access_token_and_get_roles_permission(code: str):
     payload = (
         "grant_type=authorization_code"
-        "&client_id=BxxmEvkITReWi9zNi3kCH1dN07SyosyR"
-        f"&client_secret=BXmzzrpCMO3TPL4GRZUqa9WyvY5lnzSoqSwwvCJi3C9gBejUwgrjt_kdy99hljtJ"
+        f"&client_id={CLIENT_ID_APP}"
+        f"&client_secret={CLIENT_SECRET_APP}"
         f"&code={code}"
         f"&redirect_uri=http://localhost:8000/docs"
     )
     access_token = {code}
     headers = {"content-type": "application/x-www-form-urlencoded",'Authorization': f"Bearer {access_token}"}
-    response = requests.post("https://dev-vgwol4rrkbyri5sm.us.auth0.com/oauth/token", payload, headers=headers)
+    response = requests.post(f"https://{DOMAIN}/oauth/token", payload, headers=headers)
+
     #excpetion handling
     if response.status_code == 200:
+
     #call my custumer middleware for extrating user informations
         extract_user(response)
     else:
         print(f" Failed to fetch token. Status code: {response.status_code}")
         print("Response:", response.text)
-    # payload_token = {"client_id":"LiRWtm33Heceqw7K833qdUC2qOQJTbJW","client_secret":"HiW4jGOwmShbMN1Kl7MfH19BGgQznNht9pmrNYpR1eVnNf7TGwNKVWHod92Xr3Er","audience":"https://dev-vgwol4rrkbyri5sm.us.auth0.com/api/v2/","grant_type":"client_credentials"}
-    # response_token = requests.post("https://dev-vgwol4rrkbyri5sm.us.auth0.com/oauth/token", payload_token)
+
     #excpetion handling
     if response.status_code == 200:
         return response.json()
@@ -65,33 +65,39 @@ def get_access_token_and_get_roles_permission(code: str):
 
 # create middleware to extract the user informations using jwt tokens
 def extract_user(resp):
-    res = resp.json()['access_token']
     # decode the access_token using jwt.decode
+    res = resp.json()['access_token']
     decode_info = jwt.decode(res, options={"verify_signature": False})
-    #get authorization token to call get-authorization_token function
-    token =get_authorization_token() 
-    group = get_groups(token)
-    group_id=group["groups"][0]['_id']
-    add_group_member(group_id,token,decode_info['sub'])
-    #call the asssign_default_role and add default role to the login user
-    assign_default_role(decode_info['sub'])
+
     #print the roles and permission
     print('Role: ',decode_info['your_name_space/roles'])
     print('Permissions: ',decode_info['permissions'])
 
+    #get authorization token to call get-authorization_token function
+    token =get_authorization_token() 
+    group = get_groups(token)
+    group_id=group["groups"][0]['_id']
+
+    #add the current user to the groups member
+    add_group_member(group_id,token,decode_info['sub'])
+
+    #call the asssign_default_role and add default role to the login user
+    assign_default_role(decode_info['sub'])
+
 # get authorizations token 
 def get_authorization_token():
-    url = "https://dev-vgwol4rrkbyri5sm.us.auth0.com/oauth/token"
+    url = f"https://{DOMAIN}/oauth/token"
     headers = {
         "Content-Type": "application/json"
     }
     data = {
-        "client_id": "LiRWtm33Heceqw7K833qdUC2qOQJTbJW",
-        "client_secret": "HiW4jGOwmShbMN1Kl7MfH19BGgQznNht9pmrNYpR1eVnNf7TGwNKVWHod92Xr3Er",
+        "client_id": f"{CLIENT_ID}",
+        "client_secret": f"{CLIENT_SECRET}",
         "audience": "urn:auth0-authz-api",
         "grant_type": "client_credentials"
     }
     response = requests.post(url, headers=headers, json=data)
+
     #excpetion handling
     if response.status_code == 200:
         token_info = response.json()
@@ -100,11 +106,10 @@ def get_authorization_token():
         print(f" Failed to fetch token. Status code: {response.status_code}")
         print("Response:", response.text)
 
-
 #create roles for user
 @server.post('/create_roles')
 def create_roles(name,description,token):
-    url = "https://dev-vgwol4rrkbyri5sm.us.auth0.com/api/v2/roles"
+    url = f"https://{DOMAIN}/api/v2/roles"
     headers = {
             "cache-control": "no-cache",
             "content-type": "application/json",
@@ -115,6 +120,7 @@ def create_roles(name,description,token):
             "description": f"{description}"
         }
     response = requests.post(url, headers=headers, json=data)
+
     #excpetion handling
     if response.status_code == 200:
         t = response.json().get("access_token")
@@ -122,14 +128,14 @@ def create_roles(name,description,token):
     else:
         print(f"Failed to create roles. Status code: {response.status_code}")
         print(response.text)
-    # return response.json().get("access_token")
 
 #assign default role to the user
 def assign_default_role(user_id):
-    payload_token  = {"client_id":f"{CLIENT_ID}","client_secret":"HiW4jGOwmShbMN1Kl7MfH19BGgQznNht9pmrNYpR1eVnNf7TGwNKVWHod92Xr3Er","audience":"https://dev-vgwol4rrkbyri5sm.us.auth0.com/api/v2/","grant_type":"client_credentials"}
-    response_token = requests.post("https://dev-vgwol4rrkbyri5sm.us.auth0.com/oauth/token", payload_token)
+    payload_token  = {"client_id":f"{CLIENT_ID}","client_secret":f"{CLIENT_SECRET}","audience":f"https://{DOMAIN}/api/v2/","grant_type":"client_credentials"}
+    response_token = requests.post(f"https://{DOMAIN}/oauth/token", payload_token)
     access_token = response_token.json()['access_token']
     response_token.raise_for_status()
+
     # Assign role to user
     assign_role_url = f"https://{DOMAIN}/api/v2/users/{user_id}/roles"
     headers = {
@@ -137,6 +143,7 @@ def assign_default_role(user_id):
         "Content-Type": "application/json"
     }
     data = {"roles": [DEFAULT_ROLE_ID]}
+
     #excpetion handling
     try:
         response = requests.post(assign_role_url, json=data, headers=headers)
@@ -145,7 +152,7 @@ def assign_default_role(user_id):
     except requests.exceptions.RequestException as e:
         print(f"Error assigning role: {e}")
 
-#get groups from the authorization
+#get groups from the authorization      
 def get_groups(token):
     api_url = "https://dev-vgwol4rrkbyri5sm.us.webtask.run/adf6e2f2b84784b57522e3b19dfc9201/api/groups"
     auth_token = token
@@ -154,6 +161,7 @@ def get_groups(token):
         "Content-Type": "application/json"
     }
     response = requests.get(api_url, headers=headers)
+
     #excpetion handling
     if response.status_code == 200:
         groups = response.json()
@@ -166,12 +174,12 @@ def get_groups(token):
 @server.patch('/add-member')
 def add_group_member(group_id,token,user_id):
     url = f"https://dev-vgwol4rrkbyri5sm.us.webtask.run/adf6e2f2b84784b57522e3b19dfc9201/api/groups/{group_id}/members"
-    # Headers
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
     data = json.dumps([user_id])
+
     #excpetion handling
     try:
         response = requests.patch(url, headers=headers, data=data)
@@ -183,6 +191,5 @@ def add_group_member(group_id,token,user_id):
         else:
             print(f"Failed to update members. Status code: {response.status_code}")
             print("Response:", response.text)
-
     except requests.exceptions.RequestException as e:
         print("Error:", e)
