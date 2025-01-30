@@ -4,7 +4,7 @@ from starlette.responses import RedirectResponse
 import jwt
 import json
 import os 
-from config import DOMAIN,CLIENT_ID,CLIENT_SECRET,CLIENT_ID_APP,CLIENT_SECRET_APP,DEFAULT_ROLE_ID
+from config import DOMAIN,CLIENT_ID,CLIENT_SECRET,CLIENT_ID_APP,CLIENT_SECRET_APP,DEFAULT_ROLE_ID,REDIRECT_URI_TOKEN,REDIRECT_URI_DOCS,URL_EXTENTION
 
 #create a app of fastapi
 server = FastAPI()
@@ -16,7 +16,7 @@ def login():
         f"https://{DOMAIN}/authorize"
         "?response_type=code"
         f"&client_id={CLIENT_ID_APP}"
-        "&redirect_uri=http://localhost:8000/token"
+        f"&redirect_uri={REDIRECT_URI_TOKEN}"
         "&scope= openid profile email&prompt=login"
         "&audience=https://microapis.io/api/orders"
     )
@@ -28,7 +28,7 @@ def register():
         f"https://{DOMAIN}/authorize"
         "?response_type=code"
         f"&client_id={CLIENT_SECRET_APP}"
-        "&redirect_uri=http://localhost:8000/docs"
+        f"&redirect_uri={REDIRECT_URI_DOCS}"
         "&scope=offline_access openid profile email"
         "&audience=https://microapis.io/api/orders"
     )
@@ -154,7 +154,7 @@ def assign_default_role(user_id):
 
 #get groups from the authorization      
 def get_groups(token):
-    api_url = "https://dev-vgwol4rrkbyri5sm.us.webtask.run/adf6e2f2b84784b57522e3b19dfc9201/api/groups"
+    api_url = f"{URL_EXTENTION}/groups"
     auth_token = token
     headers = {
         "Authorization": f"Bearer {auth_token}",
@@ -173,7 +173,7 @@ def get_groups(token):
 # add member in groups
 @server.patch('/add-member')
 def add_group_member(group_id,token,user_id):
-    url = f"https://dev-vgwol4rrkbyri5sm.us.webtask.run/adf6e2f2b84784b57522e3b19dfc9201/api/groups/{group_id}/members"
+    url = f"{URL_EXTENTION}/groups/{group_id}/members"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
