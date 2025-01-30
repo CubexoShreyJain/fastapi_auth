@@ -17,13 +17,14 @@ def login():
         "?response_type=code"
         f"&client_id={CLIENT_ID_APP}"
         f"&redirect_uri={REDIRECT_URI_TOKEN}"
-        "&scope= openid profile email&prompt=login"
+        "&scope= openid profile email"
         "&audience=https://microapis.io/api/orders"
     )
 
 #redirect to the fastapi docs page
 @server.get("/login")
 def register():
+    print('<<>>>>><<>>>')
     return RedirectResponse(
         f"https://{DOMAIN}/authorize"
         "?response_type=code"
@@ -36,53 +37,66 @@ def register():
 #redirect to the fastapi docs page
 @server.get("/token")
 def get_access_token_and_get_roles_permission(code: str):
-    payload = (
-        "grant_type=authorization_code"
-        f"&client_id={CLIENT_ID_APP}"
-        f"&client_secret={CLIENT_SECRET_APP}"
-        f"&code={code}"
-        f"&redirect_uri=http://localhost:8000/docs"
-    )
-    access_token = {code}
-    headers = {"content-type": "application/x-www-form-urlencoded",'Authorization': f"Bearer {access_token}"}
-    response = requests.post(f"https://{DOMAIN}/oauth/token", payload, headers=headers)
+        print('<<>>>>><<>>>')
+        payload = (
+            "grant_type=authorization_code"
+            f"&client_id={CLIENT_ID_APP}"
+            f"&client_secret={CLIENT_SECRET_APP}"
+            f"&code={code}"
+            # f"&redirect_uri=http://localhost:8000/docs"
+            "&redirect_uri=http://localhost:8000/assign_role"
+        )
+        access_token = {code}
+        headers = {"content-type": "application/x-www-form-urlencoded",'Authorization': f"Bearer {access_token}"}
+        response = requests.post(f"https://{DOMAIN}/oauth/token", payload, headers=headers)
+        print('Responseeeeeeeeeeeeeeeee: ',response)
+        #excpetion handling
+        try:
+            if response.status_code == 200:
+                print('<<<<<<<<<<<<<<<<<<<')
+            #call my custumer middleware for extrating user informations
+                extract_user(response)
+            else:
+                print('<<<<<<<<<<<<<<<<<<<')
+                print(f" Failed to fetch token. Status code: {response.status_code}")
+                print("Response:", response.text)
 
-    #excpetion handling
-    if response.status_code == 200:
-
-    #call my custumer middleware for extrating user informations
-        extract_user(response)
-    else:
-        print(f" Failed to fetch token. Status code: {response.status_code}")
-        print("Response:", response.text)
-
-    #excpetion handling
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Failed to fetch groups. Status code: {response.status_code}")
-        print(response.text)
+            #excpetion handling
+            if response.status_code == 200:
+                print('<<<<<<<<<<<<<<<<<<<')
+                return response.json()
+            else:
+                print('<<<<<<<<<<<<<<<<<<<')
+                print(f"Failed to fetch groups. Status code: {response.status_code}")
+                print(response.text)
+        except Exception as e:
+            print(e)
 
 # create middleware to extract the user informations using jwt tokens
 def extract_user(resp):
-    # decode the access_token using jwt.decode
-    res = resp.json()['access_token']
-    decode_info = jwt.decode(res, options={"verify_signature": False})
 
-    #print the roles and permission
-    print('Role: ',decode_info['your_name_space/roles'])
-    print('Permissions: ',decode_info['permissions'])
+    try:
+        # decode the access_token using jwt.decode
+        res = resp.json()['access_token']
+        decode_info = jwt.decode(res, options={"verify_signature": False})
 
-    #get authorization token to call get-authorization_token function
-    token =get_authorization_token() 
-    group = get_groups(token)
-    group_id=group["groups"][0]['_id']
+        #print the roles and permission
+        print('Role: ',decode_info['your_name_space/roles'])
+        print('Permissions: ',decode_info['permissions'])
 
-    #add the current user to the groups member
-    add_group_member(group_id,token,decode_info['sub'])
+        #get authorization token to call get-authorization_token function
+        token =get_authorization_token() 
+        group = get_groups(token)
+        group_id=group["groups"][0]['_id']
 
-    #call the asssign_default_role and add default role to the login user
-    assign_default_role(decode_info['sub'])
+        #add the current user to the groups member
+        add_group_member(group_id,token,decode_info['sub'])
+
+        #call the asssign_default_role and add default role to the login user
+        assign_default_role(decode_info['sub'])
+    except Exception as e:
+        print(e)
+        print(e)
 
 # get authorizations token 
 def get_authorization_token():
@@ -97,7 +111,6 @@ def get_authorization_token():
         "grant_type": "client_credentials"
     }
     response = requests.post(url, headers=headers, json=data)
-
     #excpetion handling
     if response.status_code == 200:
         token_info = response.json()
@@ -109,32 +122,40 @@ def get_authorization_token():
 #create roles for user
 @server.post('/create_roles')
 def create_roles(name,description,token):
-    url = f"https://{DOMAIN}/api/v2/roles"
-    headers = {
-            "cache-control": "no-cache",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {token}"
-        }
-    data = {
-            "name": f"{name}",
-            "description": f"{description}"
-        }
-    response = requests.post(url, headers=headers, json=data)
+    try:
+        url = f"https://{DOMAIN}/api/v2/roles"
+        headers = {
+                "cache-control": "no-cache",
+                "content-type": "application/json",
+                "Authorization": f"Bearer {token}"
+            }
+        data = {
+                "name": f"{name}",
+                "description": f"{description}"
+            }
+        response = requests.post(url, headers=headers, json=data)
 
-    #excpetion handling
-    if response.status_code == 200:
-        t = response.json().get("access_token")
-        return t
-    else:
-        print(f"Failed to create roles. Status code: {response.status_code}")
-        print(response.text)
+        #excpetion handling
+        if response.status_code == 200:
+            t = response.json().get("access_token")
+            return t
+        else:
+            print(f"Failed to create roles. Status code: {response.status_code}")
+            print(response.text)
+    except Exception as e:
+        print(e)
 
 #assign default role to the user
+@server.post('/assign_role')
 def assign_default_role(user_id):
-    payload_token  = {"client_id":f"{CLIENT_ID}","client_secret":f"{CLIENT_SECRET}","audience":f"https://{DOMAIN}/api/v2/","grant_type":"client_credentials"}
-    response_token = requests.post(f"https://{DOMAIN}/oauth/token", payload_token)
-    access_token = response_token.json()['access_token']
-    response_token.raise_for_status()
+    try:
+        payload_token  = {"client_id":f"{CLIENT_ID}","client_secret":f"{CLIENT_SECRET}","audience":f"https://{DOMAIN}/api/v2/","grant_type":"client_credentials"}
+        response_token = requests.post(f"https://{DOMAIN}/oauth/token", payload_token)
+        access_token = response_token.json()['access_token']
+        response_token.raise_for_status()
+    except Exception as e:
+        print(e)
+
 
     # Assign role to user
     assign_role_url = f"https://{DOMAIN}/api/v2/users/{user_id}/roles"
@@ -154,6 +175,7 @@ def assign_default_role(user_id):
 
 #get groups from the authorization      
 def get_groups(token):
+
     api_url = f"{URL_EXTENTION}/groups"
     auth_token = token
     headers = {
