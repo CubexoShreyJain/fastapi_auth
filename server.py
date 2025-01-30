@@ -54,8 +54,6 @@ def get_access_token_and_get_roles_permission(code: str):
     else:
         print(f" Failed to fetch token. Status code: {response.status_code}")
         print("Response:", response.text)
-    # payload_token = {"client_id":"LiRWtm33Heceqw7K833qdUC2qOQJTbJW","client_secret":"HiW4jGOwmShbMN1Kl7MfH19BGgQznNht9pmrNYpR1eVnNf7TGwNKVWHod92Xr3Er","audience":"https://dev-vgwol4rrkbyri5sm.us.auth0.com/api/v2/","grant_type":"client_credentials"}
-    # response_token = requests.post("https://dev-vgwol4rrkbyri5sm.us.auth0.com/oauth/token", payload_token)
     #excpetion handling
     if response.status_code == 200:
         return response.json()
