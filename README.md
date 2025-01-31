@@ -1,38 +1,99 @@
-# fastapi_auth
-Description
+# Auth0 implementation in FastAPI
 
-Objective:
+## Description
 
-Implement authentication and authorization using Auth0 in the FastAPI application.
+This project integrates authentication and authorization using **Auth0** in a **FastAPI** application. It implements group-based access control, ensuring users can be assigned to groups with specific permissions.
 
-Ensure users can be assigned to groups with specific permissions for access control.
+## Objective
 
-Deliverables:
+- Implement **Auth0 authentication** in FastAPI.
+- Enable **group-based permission management**.
 
-Integrate Auth0 into the FastAPI project for user authentication.
+## Features
 
-Configure Auth0 to support group-based permissions.
+- **Auth0 integration** for user authentication.
+- **JWT-based authentication** middleware.
+- **Group-based access control** with permissions.
+- **Route-level permission checks**.
+- **Dynamic user-group assignments**.
+- **Comprehensive error handling** for unauthorized access.
 
-Implement logic to:
+2. **Install dependencies**
 
-Create groups in Auth0.
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Assign permissions to groups.
+3. **Set up Auth0 credentials**
 
-Associate users with groups.
+   ```
+   AUTH0_DOMAIN=your-auth0-domain
+   API_IDENTIFIER=your-api-identifier
+   CLIENT_ID=your-client-id
+   CLIENT_SECRET=your-client-secret
+   ```
+## API Endpoints
 
-Add middleware in FastAPI to verify JWT tokens and extract user information.
+Login from the Auth0 login page
+```
+@server.get('/')
+```
 
-Implement route-level permission checks based on user roles and permissions.
+Redirect to the FastAPI docs page
+```
+@server.get("/login")
+```
 
-Acceptance Criteria:
+Redirect to the FastAPI docs page
+```
+@server.get("/token")
+```
 
-Auth0 authentication works seamlessly for all API endpoints.
+Create roles for users
+```
+@server.post('/create_roles')
+```
 
-Users are assigned to groups dynamically based on the application logic.
+Add member to a role
+```
+@server.patch('/add-member')
+```
+## Usage
 
-Permissions are enforced at the group level to restrict access to specific routes.
+1. **Run the FastAPI server**
 
-Appropriate error handling is implemented for unauthorized and unauthenticated access.
+   ```bash
+   uvicorn main:app --reload
+   ```
 
-Detailed documentation is provided on how to configure Auth0 for the application, including tenant setup, application creation, and group/permission management.
+2. **Access API documentation**
+
+   - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+## Deliverables
+
+- **Authentication & Authorization Flow**
+
+  - User logs in via Auth0.
+  - Auth0 assigns user to a group based on predefined rules.
+  - JWT token is issued with user role and permissions.
+  - FastAPI verifies JWT and extracts user details.
+  - Access to routes is controlled based on user permissions.
+
+- **Middleware & Security**
+
+  - JWT Middleware for token validation.
+  - Role-based access control (RBAC) enforcement.
+  - Exception handling for unauthorized access.
+
+## Acceptance Criteria
+
+- **Auth0 authentication** works seamlessly for all API endpoints.
+
+- **Users are assigned to groups dynamically based on the application logic.**
+
+- **Permissions are enforced at the group level to restrict access to specific routes.**
+
+- **Appropriate error handling is implemented for unauthorized and unauthenticated access.**
+
+- **Detailed documentation is provided on how to configure Auth0 for the application, including tenant setup, application creation, and group/permission management.**
