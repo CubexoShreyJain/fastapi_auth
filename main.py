@@ -1,17 +1,16 @@
 import requests
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.responses import RedirectResponse
 import jwt
 from jwt import PyJWKClient
-import json
 import config
 
-server = FastAPI()
+main = FastAPI()
 security = HTTPBearer()
 
 # Redirects user to the Auth0 login page
-@server.get("/")
+@main.get("/")
 def register():
     auth0_url = (
         f"https://{config.AUTH0_DOMAIN}/authorize?response_type=code&client_id={config.CLIENT_ID}"
@@ -19,17 +18,8 @@ def register():
     )
     return RedirectResponse(url=auth0_url)
 
-# Redirects to the Auth0 login page for getting an authorization code
-@server.get("/login")
-def login():
-    auth_url = (
-        f"https://{config.AUTH0_DOMAIN}/authorize?response_type=code&client_id={config.CLIENT_ID}"
-        f"&redirect_uri={config.REDIRECT_URI}&scope=offline_access openid profile email&audience={config.AUDIENCE}"
-    )
-    return RedirectResponse(auth_url)
-
 # Endpoint to exchange the authorization code for an access token
-@server.get("/token")
+@main.get("/token")
 def get_access_token(code: str):
     payload = {
         "grant_type": "authorization_code",
@@ -39,7 +29,7 @@ def get_access_token(code: str):
         "redirect_uri": config.REDIRECT_URI,
     }
 
-    headers = {"content-type": "application/x-www-form-urlencoded"}
+    headers = {"content-type": "application/x-www-form-urlencoded","Authorization": f"Bearer {code}"}
 
     response = requests.post(
         f"https://{config.AUTH0_DOMAIN}/oauth/token", data=payload, headers=headers
@@ -57,9 +47,10 @@ def get_access_token(code: str):
     group_id = next((group['_id'] for group in group_id_data['groups'] if group['name'] == 'Employee'), None)
 
     if user_id:
+        assign_user_to_group_helper(user_id,group_id,token)
         assign_role_to_user(user_id, config.DEFAULT_ROLE_ID)
-        assign_user_to_group(user_id,group_id,token)
-    return {"access_token": result["access_token"], "decoded_token": decoded_token}
+
+    return {"access_token":token, "decoded_token": decoded_token}
 
 def get_authorization_token():
     url = f"https://{config.AUTH0_DOMAIN}/oauth/token"
@@ -81,14 +72,18 @@ def get_authorization_token():
         print("Response:", response.text)
 
 # Endpoint to create a new role in Auth0
-@server.post("/role")
-def create_role(name: str, description: str, token: str):
+@main.post("/role")
+async def create_role(request:Request,token=Header(None)):
+    body = await request.json()
+    name = body['name']
+    description = body['description']
+
     url = f"https://{config.AUTH0_DOMAIN}/api/v2/roles"
 
     headers = {
+        "cache-control": "no-cache",
         "content-type": "application/json",
-        "authorization": f"Bearer {token}",
-        "cache-control": "no-cache"
+        "Authorization": f"Bearer {token}"
     }
     data = {"name": name, "description": description}
 
@@ -99,7 +94,7 @@ def create_role(name: str, description: str, token: str):
     return response.json()
 
 # Endpoint to assign a role to a user
-@server.post("/assign-role")
+@main.post("/assign-role")
 def assign_role(user_id: str, role_id: str):
     assign_role_to_user(user_id, role_id)
     return {"message": "Role assigned successfully"}
@@ -120,7 +115,7 @@ def assign_role_to_user(user_id: str, role_id: str):
         raise HTTPException(status_code=response.status_code, detail=response.text)
 
 # Protected route that requires a valid JWT token to access
-@server.get("/protected")
+@main.get("/protected")
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
 
@@ -144,7 +139,7 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
     return {"message": "Access granted", "user": payload}
 
 # Middleware to enforce permissions for accessing protected routes
-@server.middleware("http")
+@main.middleware("http")
 async def enforce_permissions(request, call_next):
     if request.url.path.startswith("/protected"):
         auth_header = request.headers.get("Authorization")
@@ -192,7 +187,7 @@ def get_management_api_token():
 
     return response.json()["access_token"]
 
-@server.get("/fetch-groups")
+@main.get("/fetch-groups")
 def fetch_groups(token: str):
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(f"{config.EXTENSION_URL}/groups", headers=headers)
@@ -202,19 +197,47 @@ def fetch_groups(token: str):
     
     return response.json()
 
-@server.patch("/assign-user-to-group")
-def assign_user_to_group(user_id: str, group_id: str, access_token: str):
-    url = f"{config.EXTENSION_URL}/groups/{group_id}/members"
+# Endpoint to assign a user to a group
+@main.patch("/assign-user-to-group")
+async def assign_user_to_group(request: Request, Authorization: str = Header(None)):
+    body = await request.json()
+    user_id = body["user_id"]
+    group_id = body["group_id"]
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {access_token}"
-    }
-
-    data = json.dumps([user_id])
-    response = requests.patch(url, headers=headers, data=data)
+    response = assign_user_to_group_helper(user_id, group_id, Authorization)
 
     if response.status_code != 204:
         raise HTTPException(status_code=response.status_code, detail=response.text)
 
-    return {"message": f"User successfully assigned to group "}
+    return {"message": "User successfully assigned to group"}
+
+def assign_user_to_group_helper(user_id: str, group_id: str, token: str):
+    url = f"{config.EXTENSION_URL}/groups/{group_id}/members"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+    data = [user_id]
+    return requests.patch(url, headers=headers, json=data)
+
+# Endpoint to assign a role to a group
+@main.patch("/assign-role-to-group")
+async def assign_role_to_group(request:Request,Authorization: str=Header(None)):
+    body=await request.json()
+    group_id=body["group_id"]
+    role_id=body["role_id"]
+
+    url = f"{config.EXTENSION_URL}/groups/{group_id}/roles"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": Authorization
+    }
+
+    data=[role_id]
+    response = requests.patch(url, headers=headers, json=data)
+
+    if response.status_code != 204:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    return {"message": f"Role successfully assigned to group "}
